@@ -101,3 +101,15 @@ services:
     ports:
       - 3000:3000
     user: "104"
+
+  postgres:
+    image: postgres
+    environment:
+      - POSTGRES_PASSWORD=postgres
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+
+volumes:
+  postgres_data: {}
+  db-data:
+    driver: local
