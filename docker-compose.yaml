@@ -1,4 +1,11 @@
-version: '3.6'
+version: '3.7'
+
+volumes:
+  pg_data: {}
+  teamcity_data: {}
+  metabase_data: {}
+
+
 services:
   nginx:
     image: nginx
@@ -58,21 +65,21 @@ services:
     command:
       - --config.file=/etc/prometheus/prometheus.yml
     volumes:
-      - ./prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - ./prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro
     depends_on:
       - cadvisor
 
-  cadvisor:
-    image: gcr.io/google-containers/cadvisor:latest
-    ports:
-      - 8080:8080
-    volumes:
-      - /:/rootfs:ro
-      - /var/run:/var/run:rw
-      - /sys:/sys:ro
-      - /var/lib/docker/:/var/lib/docker:ro
-    depends_on:
-      - redis
+    cadvisor:
+      image: gcr.io/google-containers/cadvisor:v0.36.0
+      container_name: cadvisor
+      restart: always
+      volumes:
+        - /:/rootfs:ro
+        - /var/run:/var/run:rw
+        - /sys:/sys:ro
+        - /var/lib/docker/:/var/lib/docker:ro
+      depends_on:
+        - redis
 
   redis:
     image: redis:latest
@@ -103,13 +110,50 @@ services:
     user: "104"
 
   postgres:
-    image: postgres
+    image: postgres:13.2
     environment:
-      - POSTGRES_PASSWORD=postgres
+      - POSTGRES_PASSWORD=hbZkzny5xrvVH
     volumes:
-      - postgres_data:/var/lib/postgresql/data
+      - pg_data:/var/lib/postgresql/data
 
-volumes:
-  postgres_data: {}
-  db-data:
-    driver: local
+  pgbouncer:
+    image: edoburu/pgbouncer:1.11.0
+    environment:
+       - DB_USER=postgres
+       - DB_PASSWORD=hbZkzny5xrvVH
+       - DB_HOST=postgres
+       - DB_NAME=postgres
+       - POOL_MODE=transaction
+       - ADMIN_USERS=postgres,dbuser
+    ports:
+      - 5432:5432
+    depends_on:
+      - postgres
+
+  metabase:
+    container_name: metabase
+    restart: always
+    image: metabase/metabase:v0.39.0.1
+    volumes:
+       - .metabase_data:/metabase-data
+    ports:
+       - 8085:3000
+
+
+  teamcity-server:
+    image: jetbrains/teamcity-server:2020.2.4
+    container_name: teamcity-server
+    restart: always
+    volumes:
+      - teamcity_data:/data/teamcity_server/datadir
+    depends_on:
+      - postgres
+
+  teamcity-agent:
+    container_name: teamcity-agent
+    restart: always
+    build:
+      context: ./teamcity-agents
+      dockerfile: python.Dockerfile
+    volumes:
+      - "/var/run/docker.sock:/var/run/docker.sock"
